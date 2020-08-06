@@ -1,0 +1,847 @@
+---
+title: "Final Project"
+author: " Grace Malonga, Jingyi Liang, Xu Chen"
+date: "2019/12/6"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+##### Preparetion
+
+### library package
+```{r lib}
+library(tidyverse)
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager",repos = '"https://cloud.r-project.org')
+library("BiocManager")
+library(limma)
+library(table1)
+library(genefilter)
+library(ggrepel)
+
+```
+
+### loaddata
+```{r}
+ILD <- read.csv("ILD_proteomics_data.csv")
+#mutate age_stratify variable used for question 4
+ILD <- ILD %>% mutate(age_stratify=ifelse(Age>=60,"old","young"))
+```
+
+##### Question 1 What proteins are differentially expressed between ILD phenotypes?
+rowttest
+```{r}
+ild2 <- ILD %>%
+ filter(Group=="RA_ILD"|Group=="RA_noILD")%>%
+ mutate(Group=recode(factor(Group),RA_noILD="ra.no.ild", RA_ILD="ra.ild"))
+
+
+proteins1 <- ild2 %>%
+  mutate_at(vars(20:1341), funs(log2(.))) %>%
+  select(20:1341) %>%
+  t()
+
+m <- as.matrix(proteins1)
+f <- factor(c(rep("ra.no.ild", 37), rep("ra.ild", 39)))
+ttests <- rowttests(m, f)
+pval <- ttests$p.value
+sum(pval<0.01)
+sum(pval<0.01 & abs(ttests$dm) >= .5)
+sum(pval<0.01 & ttests$dm >= .5)
+ttests
+
+names(ttests)
+
+#mask <- with(ttests, abs(dm) >= .5 & p.value < .01) #when applying a stricter threshold with
+mask <- with(ttests,p.value < .01)
+spike <- rownames(proteins1) %in% colnames(proteins1)
+cols <- ifelse(mask, "red", ifelse(spike,"dodgerblue","black"))
+
+with(ttests, plot(-dm, -log10(p.value), cex = .8, pch = 16,
+                  xlim=c(-2,2), ylim=c(0,5),
+                  xlab="Log2 Fold Change",
+                  col=cols))
+abline(h=1.5, v=c(-1,1), lty=2)
+title('A. T-tests Results Volcano Plot: RA ILD vs. RA no ILD')
+```
+```{r}
+ild3 <- ILD %>% filter(Group=="IPF"|Group=="healthy")%>%
+  mutate(Group=recode(factor(Group),IPF="IPF",healthy="healthy"))
+
+proteins1 <- ild3 %>%
+  mutate_at(vars(20:1341), funs(log2(.))) %>%
+  select(20:1341) %>%
+  t()
+
+m <- as.matrix(proteins1)
+f <- factor(c(rep("IPF", 42), rep("healthy", 42)))
+ttests <- rowttests(m, f)
+pval <- ttests$p.value
+sum(pval<0.01)
+sum(pval<0.01 & abs(ttests$dm) >= .5)
+sum(pval<0.01 & ttests$dm >= .5)
+ttests
+
+names(ttests)
+
+#mask <- with(ttests, abs(dm) >= .5 & p.value < .01) #when applying a stricter threshold with
+mask <- with(ttests,p.value < .01)
+spike <- rownames(proteins1) %in% colnames(proteins1)
+cols <- ifelse(mask, "red", ifelse(spike,"dodgerblue","black"))
+
+with(ttests, plot(-dm, -log10(p.value), cex = .8, pch = 16,
+                  xlim=c(-2,2), ylim=c(0,5),
+                  xlab="Log2 Fold Change",
+                  col=cols))
+abline(h=1.5, v=c(-1,1), lty=2)
+title('B. T-tests Results Volcano Plot: IPF vs. Healthy')
+```
+
+```{r}
+ild4 <- ILD %>% filter(Group=="RA_ILD"|Group=="IPF")%>%
+  mutate(Group=recode(factor(Group),RA_ILD="RA_ILD",IPF="IPF"))
+
+proteins1 <- ild4 %>%
+  mutate_at(vars(20:1341), funs(log2(.))) %>%
+  select(20:1341) %>%
+  t()
+
+m <- as.matrix(proteins1)
+f <- factor(c(rep("IPF", 42), rep("RA_ILD", 39)))
+ttests <- rowttests(m, f)
+pval <- ttests$p.value
+sum(pval<0.01)
+sum(pval<0.01 & abs(ttests$dm) >= .5)
+sum(pval<0.01 & ttests$dm >= .5)
+ttests
+
+names(ttests)
+
+#mask <- with(ttests, abs(dm) >= .5 & p.value < .01) #when applying a stricter threshold with
+mask <- with(ttests,p.value < .01)
+spike <- rownames(proteins1) %in% colnames(proteins1)
+cols <- ifelse(mask, "red", ifelse(spike,"dodgerblue","black"))
+
+with(ttests, plot(-dm, -log10(p.value), cex = .8, pch = 16,
+                  xlim=c(-2,2), ylim=c(0,5),
+                  xlab="Log2 Fold Change",
+                  col=cols))
+abline(h=1.5, v=c(-1,1), lty=2)
+title('C. T-tests Results Volcano Plot: RA ILD vs. IPF')
+```
+
+```{r}
+ild5 <- ILD %>% filter(ILD_subtype=="Fibrotic NSIP"|ILD_subtype=="Cellular NSIP")%>%
+  mutate(Group=recode(factor(ILD_subtype),RA_ILD="Fibrotic NSIP",IPF="Cellular NSIP"))
+
+proteins1 <- ild5 %>%
+  mutate_at(vars(20:1341), funs(log2(.))) %>%
+  select(20:1341) %>%
+  t()
+
+m <- as.matrix(proteins1)
+f <- factor(c(rep("Fibrotic NSIP", 19), rep("Cellular NSIP", 15)))
+ttests <- rowttests(m, f)
+pval <- ttests$p.value
+sum(pval<0.01)
+sum(pval<0.01 & abs(ttests$dm) >= .5)
+sum(pval<0.01 & ttests$dm >= .5)
+ttests
+
+names(ttests)
+
+#mask <- with(ttests, abs(dm) >= .5 & p.value < .01) #when applying a stricter threshold with
+mask <- with(ttests,p.value < .01)
+spike <- rownames(proteins1) %in% colnames(proteins1)
+cols <- ifelse(mask, "red", ifelse(spike,"dodgerblue","black"))
+
+with(ttests, plot(-dm, -log10(p.value), cex = .8, pch = 16,
+                  xlim=c(-2,2), ylim=c(0,5),
+                  xlab="Log2 Fold Change",
+                  col=cols))
+abline(h=1.5, v=c(-1,1), lty=2)
+title('D. T-tests Results Volcano Plot: Fibrotic NSIP vs. Cellular NSIP')
+```
+
+
+
+##### Question 2 How many of these differentially expressed proteins would you expect to be false positives (think of your significance level)? Can you reduce the false positive rate? (hint: consider corrections for multiple hypothesis testing)  
+
+
+
+### I.RA_noILD and RA_ILD
+```{r}
+group_list <- factor(c(rep("RA_noILD",37),rep("RA_ILD",39)))
+ILD %>% filter(Group=='RA_noILD'|Group=='RA_ILD') -> data1
+data1 <- data1 %>% mutate(Group=recode(factor(Group),RA_noILD="RA_noILD",RA_ILD="RA_ILD"))
+data <- data1 %>% select(20:1341) %>% log2(.) %>% t()
+design <- model.matrix(~0+group_list)
+
+colnames(design) <- levels(factor(group_list))
+rownames(design) <- colnames(data)
+
+contrast.matrix<-makeContrasts(RA_noILD-RA_ILD,levels = design)
+contrast.matrix
+fit <- lmFit(data,design)
+
+fit2 <- contrasts.fit(fit, contrast.matrix) 
+
+fit2 <- eBayes(fit2,trend=TRUE)
+
+result_limma1 <- topTable(fit2,coef=1,adjust.method='fdr',number=nrow(data))
+
+dif1 <- result_limma1%>%filter(adj.P.Val<0.01& abs(logFC)>0.5)
+dif1
+#The number of differentially expressed proteins
+sum(result_limma1$adj.P.Val < 0.01&abs(result_limma1$logFC)>=0.5)
+sum(result_limma1$adj.P.Val < 0.01&result_limma1$logFC<=-0.5)
+sum(result_limma1$adj.P.Val < 0.01&result_limma1$logFC>=0.5)
+```
+
+```{r}
+result_limma1$threshold <-
+  factor(ifelse(result_limma1$adj.P.Val < 0.01 & abs(result_limma1$logFC) >= 0.5,
+              ifelse(result_limma1$logFC>= 0.5,
+                      'Up','Down'),'NoSignifi'),levels=c('Up','Down','NoSignifi'))                         
+ggplot(result_limma1,aes(x=logFC,y=-log10(adj.P.Val),color=threshold))+
+  geom_point()+
+   scale_color_manual(values=c("#DC143C","#00008B","#808080"))+
+  theme_bw()+
+  theme(
+    legend.title = element_blank())+
+  ylab('-log10 (p-adj)')+
+  xlab('log2 (FoldChange)')+ggtitle("                  The volcano plot of RA_noILD versus RA_ILD")+
+  geom_vline(xintercept=c(-0.5,0.5),lty=3,col="black",lwd=0.5) +
+  geom_hline(yintercept = -log10(0.01),lty=3,col="black",lwd=0.5)
+```
+
+
+### II.healthy and IPF
+```{r}
+group_list <- factor(c(rep("healthy",42),rep("IPF",42)))
+ILD %>% filter(Group=='IPF'|Group=='healthy') -> data2
+data2 <- data2 %>% mutate(Group=recode(factor(Group),healthy="healthy",IPF="IPF"))
+data <- data2 %>% select(20:1341) %>% log2(.) %>% t()
+design <- model.matrix(~0+factor(group_list))
+
+colnames(design)=levels(factor(group_list))
+
+rownames(design) <- colnames(data)
+
+contrast.matrix<-makeContrasts(healthy - IPF,levels = design)
+contrast.matrix
+fit <- lmFit(data,design)
+
+fit2 <- contrasts.fit(fit, contrast.matrix) 
+
+fit2 <- eBayes(fit2,trend=TRUE)
+
+result_limma2 <- topTable(fit2,coef=1,adjust.method='fdr',number=nrow(data))
+
+
+dif2 <- result_limma2%>%filter(adj.P.Val<0.01& abs(logFC)>0.5)
+dif2
+#The number of differentially expressed proteins
+sum(result_limma2$adj.P.Val < 0.01&abs(result_limma2$logFC)>=0.5)
+sum(result_limma2$adj.P.Val < 0.01&result_limma2$logFC<=-0.5)
+sum(result_limma2$adj.P.Val < 0.01&result_limma2$logFC>=0.5)
+```
+
+```{r}
+
+result_limma2$threshold <-
+  factor(ifelse(result_limma2$adj.P.Val < 0.01 & abs(result_limma2$logFC) >= 0.5,
+                ifelse(result_limma2$logFC>= 0.5,
+                       'Up','Down'),'NoSignifi'),levels=c('Up','Down','NoSignifi'))                         
+ggplot(result_limma2,aes(x=logFC,y=-log10(adj.P.Val),color=threshold))+
+  geom_point()+
+   scale_color_manual(values=c("#00008B","#DC143C","#808080"))+
+  theme_bw()+
+  theme(
+    legend.title = element_blank())+
+  ylab('-log10 (p-adj)')+
+  xlab('log2 (FoldChange)')+ggtitle("                  The volcano plot of Healthy versus IPF")+
+  geom_vline(xintercept=c(-0.5,0.5),lty=3,col="black",lwd=0.5) +
+  geom_hline(yintercept = -log10(0.01),lty=3,col="black",lwd=0.5)
+```
+
+
+### III.RA_ILD and IPF 
+```{r}
+group_list <- factor(c(rep("RA_ILD",39),rep("IPF",42)))
+ILD %>% filter(Group=='IPF'|Group=='RA_ILD') -> data3
+data3 <- data3 %>% mutate(Group=recode(factor(Group),RA_ILD="RA_ILD",IPF="IPF"))
+data <- data3 %>% select(20:1341) %>% log2(.) %>% t()
+design <- model.matrix(~0+factor(group_list))
+
+colnames(design)=levels(factor(group_list))
+
+rownames(design) <- colnames(data)
+
+contrast.matrix<-makeContrasts(RA_ILD - IPF,levels = design)
+contrast.matrix
+fit <- lmFit(data,design)
+
+fit2 <- contrasts.fit(fit, contrast.matrix) 
+
+fit2 <- eBayes(fit2,trend=TRUE)
+
+result_limma3 <- topTable(fit2,coef=1,adjust.method='fdr',number=nrow(data))
+
+dif3 <- result_limma3%>%filter(adj.P.Val<0.01& abs(logFC)>0.5)
+dif3
+#The number of differentially expressed proteins
+sum(result_limma3$adj.P.Val < 0.01&abs(result_limma3$logFC)>=0.5)
+sum(result_limma3$adj.P.Val < 0.01&result_limma3$logFC<=-0.5)
+sum(result_limma3$adj.P.Val < 0.01&result_limma3$logFC>=0.5)
+```
+
+```{r}
+result_limma3$threshold <-
+  factor(ifelse(result_limma3$adj.P.Val < 0.01 & abs(result_limma3$logFC) >= 0.5,
+                ifelse(result_limma3$logFC>= 0.5,
+                       'Up','Down'),'NoSignifi'),levels=c('Up','Down','NoSignifi'))                         
+ggplot(result_limma3,aes(x=logFC,y=-log10(adj.P.Val),color=threshold))+
+  geom_point()+
+   scale_color_manual(values=c("#808080","#DC143C","#00008B"))+
+  theme_bw()+
+  theme(
+    legend.title = element_blank())+
+  ylab('-log10 (p-adj)')+
+  xlab('log2 (FoldChange)')+ggtitle("                  The volcano plot of RA_ILD versus IPF")+
+  geom_vline(xintercept=c(-0.5,0.5),lty=3,col="black",lwd=0.5) +
+  geom_hline(yintercept = -log10(0.01),lty=3,col="black",lwd=0.5)
+
+
+```
+
+
+### IV.RA cellular and RA fibrotic
+```{r}
+group_list <- factor(c(rep("CellularNSIP",15),rep("FibroticNSIP",19)))
+ILD %>% filter(ILD_subtype=='Fibrotic NSIP'|ILD_subtype=='Cellular NSIP') -> data4
+data4 <- data4 %>% mutate(ILD_subtype=recode(factor(ILD_subtype),FibroticNSIP="Fibrotic NSIP",CellularNSIP="Cellular NSIP")) 
+data <- order(data4[,"ILD_subtype"])
+data <- data4[data,]
+data <- data %>% select(20:1341) %>% log2(.) %>% t()
+design <- model.matrix(~0+group_list)
+colnames(design) <- levels(factor(group_list))
+rownames(design) <- colnames(data)
+
+contrast.matrix<-makeContrasts(CellularNSIP - FibroticNSIP,levels = design)
+contrast.matrix
+fit <- lmFit(data,design)
+
+fit2 <- contrasts.fit(fit, contrast.matrix) 
+
+fit2 <- eBayes(fit2,trend=TRUE)
+
+result_limma4 <- topTable(fit2,coef=1,adjust.method='fdr',number=nrow(data))
+
+dif4 <- result_limma4%>%filter(adj.P.Val<0.01& abs(logFC)>0.5)
+dif4
+
+#The number of differentially expressed proteins
+sum(result_limma4$adj.P.Val < 0.01&abs(result_limma4$logFC)>=0.5)
+sum(result_limma4$adj.P.Val < 0.01&result_limma4$logFC<=-0.5)
+sum(result_limma4$adj.P.Val < 0.01&result_limma4$logFC>=0.5)
+```
+
+```{r}
+result_limma4$threshold <-
+  factor(ifelse(result_limma4$adj.P.Val < 0.01 & abs(result_limma4$logFC) >= 0.5,
+                ifelse(result_limma4$logFC>= 0.5,
+                       'Up','Down'),'NoSignifi'),levels=c('Up','Down','NoSignifi'))                         
+ggplot(result_limma4,aes(x=logFC,y=-log10(adj.P.Val),color=threshold))+
+  geom_point()+
+   scale_color_manual(values=c("#808080","#00008B","#DC143C"))+
+  theme_bw()+
+  theme(
+    legend.title = element_blank())+
+  ylab('-log10 (p-adj)')+
+  xlab('log2 (FoldChange)')+ggtitle("                  The volcano plot of RA cellular versus RA fibrotic")+ 
+  geom_vline(xintercept=c(-0.5,0.5),lty=3,col="black",lwd=0.5) +
+  geom_hline(yintercept = -log10(0.01),lty=3,col="black",lwd=0.5)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#####Question 3 Are there differences in demographic, body size, or lung function variables between groups?
+
+
+
+
+###Gender
+```{r}
+data <- ILD %>% select(Group,Gender)
+dataTable <- table(data)
+mosaicplot(dataTable,shade=TRUE,color=TRUE,main='Mosaic Plot of Gender',xlab='Gender',ylab='Group')
+chisq.results <- chisq.test(dataTable,correct = FALSE)
+chisq.results$expected
+
+```
+
+
+
+
+
+
+
+
+
+###Age
+```{r}
+boxplot(ILD$Age~ILD$Group,main='Distribution of Age',ylab='Age',xlab='Group Type')
+shapiro.test(ILD$Age[ILD$Group=="healthy"])
+shapiro.test(ILD$FVC[ILD$Group=="RA_noILD"])
+```
+
+
+
+###Race
+```{r}
+data <- ILD %>% select(Group,Race)
+dataTable <- table(data)
+mosaicplot(dataTable,shade=TRUE,color=TRUE,main='Mosaic Plot of Race',xlab='Race',ylab='Group')
+chisq.results <- chisq.test(dataTable, simulate.p.value = TRUE)
+chisq.results$expected
+
+```
+
+
+
+
+
+###BMI
+```{r}
+boxplot(ILD$BMI~ILD$Group,main='Distribution of BMI',ylab='BMI',xlab='Group Type')
+```
+
+
+
+
+###EverSmoker
+```{r}
+data <- ILD %>% select(Group,EverSmoker)
+dataTable <- table(data)
+mosaicplot(dataTable,shade=TRUE,color=TRUE,main='Mosaic Plot of EverSmoker',xlab='EverSmoker',ylab='Group')
+chisq.results <- chisq.test(dataTable,correct = FALSE)
+chisq.results$expected
+
+```
+
+
+
+
+
+
+###PkYr
+```{r}
+boxplot(ILD$PkYr~ILD$Group,main='Distribution of Pack years of smoking',ylab='PkYr',xlab='Group Type')
+```
+
+###FEV1
+```{r}
+boxplot(ILD$FEV1~ILD$Group,main='Distribution of Forced Expiratory Volume',ylab='Forced Expiratory Volume',xlab='Group Type')
+```
+
+
+
+###FEV1PP
+```{r}
+boxplot(ILD$FEV1PP~ILD$Group,main='Distribution of Percent of Forced Expiratory Volume Predicted',ylab='FEV1PP',xlab='Group Type')
+```
+
+
+###FVC
+```{r}
+
+boxplot(ILD$FVC~ILD$Group,main='Distribution of Forced Vital Capacity',ylab='Forced Vital Capacity',xlab='Group Type')
+```
+
+
+###FVCPP
+```{r}
+boxplot(ILD$FVCPP~ILD$Group,main='Distribution of Percent of Forced Vital Capacity Predicted',ylab='FVCPP',xlab='Group Type')
+```
+
+
+
+###RatioPP
+```{r}
+boxplot(ILD$RatioPP~ILD$Group,main='Distribution of Percent of FEV1/FVC ratio',ylab='FVCPP',xlab='Group Type')
+```
+
+
+###TLC
+```{r}
+boxplot(ILD$TLC~ILD$Group,main='Distribution of Total Lung Capacity',ylab='Total Lung Capacity',xlab='Group Type')
+```
+
+
+###TLCPP
+```{r}
+boxplot(ILD$TLCPP~ILD$Group,main='Distribution of Percent of Total Lung Capacity',ylab='TLCPP',xlab='Group Type')
+```
+
+
+
+
+
+
+**Emphysema**
+```{r}
+boxplot(ILD$Emphysema~ILD$Group,main='Distribution of Goddard score for amount of Emphysema',ylab='Emphysema',xlab='Group Type')
+```
+
+
+###X6MWD
+```{r}
+boxplot(ILD$X6MWD~ILD$Group,main='Distribution of 6 Minute Walk Distance',ylab='6 minute walk distance',xlab='Group Type')
+```
+
+
+
+
+
+
+RA_ILD & RA_noILD
+
+```{r}
+data1<- ILD%>%filter(Group=="RA_ILD"|Group=="RA_noILD")%>%
+  mutate(Group=recode(factor(Group),RA_ILD="0",RA_noILD="1"),
+         Group_1=ifelse(Group==1,1,0))
+  
+```
+
+```{r}
+data1$Group <-factor(data1$Group,levels=c(0,1,2),labels=c("RA_ILD","RA_noILD","P.Value"))
+label(data1$PkYr)<-"Pack years of smoking"
+label(data1$FEV1)<-"Forced expiratory volume"
+label(data1$FEV1PP)<-"Percent of FEV1"
+label(data1$FVC)<-"Forced vital capacity"
+label(data1$FVCPP)<-"Percent of FCV "
+label(data1$RatioPP)<-"Percent of FEV1/FVC ratio"
+label(data1$TLC)<-"Total lung capacity"
+label(data1$TLCPP)<-"Percent of TLC"
+label(data1$Emphysema)<-"Goddard score for amount of emphysema"
+label(data1$X6MWD)<-"6 minute walk distance"
+units(data1$Age)<-"years"
+units(data1$BMI)<-"kg/m^2"
+getPvalue <- function(x, name, ...) {
+    if (length(x) == 0) {
+        y <- data1[[name]]
+        s <- rep("", length(render.default(x=y, name=name, ...)))
+        if (name=="Age") {
+            p <- t.test(y ~ data1$Group_1)$p.value
+        } 
+        else if(name=="EverSmoker"|name=="Gender") {
+            p <- chisq.test(table(y,droplevels(data1$Group)),correct = FALSE)$p.value}
+        else if(name=="Race"){
+          p <- chisq.test(table(y,droplevels(data1$Group)),simulate.p.value = TRUE)$p.value
+        }
+        else{
+          p<- wilcox.test(data1[[name]] ~ data1$Group_1)$p.value
+        }
+        s[2] <- sub("<", "&lt;", format.pval(p, digits=3,eps=0.001))
+        s
+    } else {
+        render.default(x=x, name=name, ...)
+    }
+}
+
+pvaluelabel <- function(label, n, ...) {
+    ifelse(n==0, label, render.strat.default(label, n, ...))
+}
+
+table1(~Gender+Age+Race+BMI+EverSmoker+PkYr+FEV1+FEV1PP+FVC+FVCPP+RatioPP+TLC+TLCPP+Emphysema+X6MWD|Group,data=data1,droplevels = F,render=getPvalue,render.strat=pvaluelabel,overall=F)
+
+```
+
+
+
+RA_ILD&IPF
+```{r}
+data1<- ILD%>%filter(Group=="IPF"|Group=="RA_ILD")%>%
+  mutate(Group=recode(factor(Group),IPF="0",RA_ILD="1"),
+         Group_1=ifelse(Group==1,1,0))
+  
+```
+
+
+```{r}
+data1$Group <-factor(data1$Group,levels=c(0,1,2),labels=c("IPF","RA_ILD","P.Value"))
+label(data1$PkYr)<-"Pack years of smoking"
+label(data1$FEV1)<-"Forced expiratory volume"
+label(data1$FEV1PP)<-"Percent of FEV1"
+label(data1$FVC)<-"Forced vital capacity"
+label(data1$FVCPP)<-"Percent of FCV "
+label(data1$RatioPP)<-"Percent of FEV1/FVC ratio"
+label(data1$TLC)<-"Total lung capacity"
+label(data1$TLCPP)<-"Percent of TLC"
+label(data1$Emphysema)<-"Goddard score for amount of emphysema"
+label(data1$X6MWD)<-"6 minute walk distance"
+units(data1$Age)<-"years"
+units(data1$BMI)<-"kg/m^2"
+getPvalue <- function(x, name, ...) {
+    if (length(x) == 0) {
+        y <- data1[[name]]
+        s <- rep("", length(render.default(x=y, name=name, ...)))
+        if (name=="Age") {
+            p <- t.test(y ~ data1$Group_1)$p.value
+        } 
+        else if(name=="EverSmoker"|name=="Gender") {
+            p <- chisq.test(table(y,droplevels(data1$Group)),correct = FALSE)$p.value}
+        else if(name=="Race"){
+          p <- chisq.test(table(y,droplevels(data1$Group)),simulate.p.value = TRUE)$p.value
+        }
+        else{
+          p<- wilcox.test(data1[[name]] ~ data1$Group_1)$p.value
+        }
+        s[2] <- sub("<", "&lt;", format.pval(p, digits=3,eps=0.001))
+        s
+    } else {
+        render.default(x=x, name=name, ...)
+    }
+}
+
+pvaluelabel <- function(label, n, ...) {
+    ifelse(n==0, label, render.strat.default(label, n, ...))
+}
+
+table1(~Gender+Age+Race+BMI+EverSmoker+PkYr+FEV1PP+FVCPP+RatioPP+TLCPP+X6MWD|Group,data=data1,droplevels = F,render=getPvalue,render.strat=pvaluelabel,overall=F)
+
+```
+
+
+
+
+
+healthy&IPF
+```{r}
+data1<- ILD%>%filter(Group=="IPF"|Group=="healthy")%>%
+  mutate(Group=recode(factor(Group),IPF="0",healthy="1"),
+         Group_1=ifelse(Group==1,1,0))
+  
+```
+
+
+```{r}
+data1$Group <-factor(data1$Group,levels=c(0,1,2),labels=c("IPF","healthy","P.Value"))
+label(data1$PkYr)<-"Pack years of smoking"
+label(data1$FEV1)<-"Forced expiratory volume"
+label(data1$FEV1PP)<-"Percent of FEV1"
+label(data1$FVC)<-"Forced vital capacity"
+label(data1$FVCPP)<-"Percent of FCV "
+label(data1$RatioPP)<-"Percent of FEV1/FVC ratio"
+label(data1$TLC)<-"Total lung capacity"
+label(data1$TLCPP)<-"Percent of TLC"
+label(data1$Emphysema)<-"Goddard score for amount of emphysema"
+label(data1$X6MWD)<-"6 minute walk distance"
+units(data1$Age)<-"years"
+units(data1$BMI)<-"kg/m^2"
+getPvalue <- function(x, name, ...) {
+    if (length(x) == 0) {
+        y <- data1[[name]]
+        s <- rep("", length(render.default(x=y, name=name, ...)))
+        if (name=="Age") {
+            p <- t.test(y ~ data1$Group_1)$p.value
+        } 
+        else if(name=="EverSmoker"|name=="Gender") {
+            p <- chisq.test(table(y,droplevels(data1$Group)),correct = FALSE)$p.value}
+        else if(name=="Race"){
+          p <- chisq.test(table(y,droplevels(data1$Group)),simulate.p.value = TRUE)$p.value
+        }
+        else{
+          p<- wilcox.test(data1[[name]] ~ data1$Group_1)$p.value
+        }
+        s[2] <- sub("<", "&lt;", format.pval(p, digits=3,eps=0.001))
+        s
+    } else {
+        render.default(x=x, name=name, ...)
+    }
+}
+
+pvaluelabel <- function(label, n, ...) {
+    ifelse(n==0, label, render.strat.default(label, n, ...))
+}
+
+table1(~Gender+Age+Race+EverSmoker|Group,data=data1,droplevels = F,render=getPvalue,render.strat=pvaluelabel,overall=F)
+
+```
+
+
+
+
+
+
+
+
+CellularNSIP & FibroticNSIP
+
+```{r}
+data1<- ILD%>%filter(ILD_subtype=="Cellular NSIP"|ILD_subtype=="Fibrotic NSIP")%>%
+  mutate(ILD_subtype=recode(factor(ILD_subtype),"Cellular NSIP"="0","Fibrotic NSIP"="1"),
+         ILD_subtype_1=ifelse(ILD_subtype==1,1,0))
+  
+```
+
+```{r}
+data1$ILD_subtype <-factor(data1$ILD_subtype,levels=c(0,1,2),labels=c("CellularNSIP","FibroticNSIP","P.Value"))
+label(data1$PkYr)<-"Pack years of smoking"
+label(data1$FEV1)<-"Forced expiratory volume"
+label(data1$FEV1PP)<-"Percent of FEV1"
+label(data1$FVC)<-"Forced vital capacity"
+label(data1$FVCPP)<-"Percent of FCV "
+label(data1$RatioPP)<-"Percent of FEV1/FVC ratio"
+label(data1$TLC)<-"Total lung capacity"
+label(data1$TLCPP)<-"Percent of TLC"
+label(data1$Emphysema)<-"Goddard score for amount of emphysema"
+label(data1$X6MWD)<-"6 minute walk distance"
+units(data1$Age)<-"years"
+units(data1$BMI)<-"kg/m^2"
+getPvalue <- function(x, name, ...) {
+    if (length(x) == 0) {
+        y <- data1[[name]]
+        s <- rep("", length(render.default(x=y, name=name, ...)))
+        if (name=="Age") {
+            p <- wilcox.test(data1[[name]] ~ data1$ILD_subtype_1)$p.value
+        } 
+        else if(name=="EverSmoker"|name=="Gender") {
+            p <- chisq.test(table(y,droplevels(data1$ILD_subtype)),correct = FALSE)$p.value}
+        else if(name=="Race"){
+          p <- chisq.test(table(y,droplevels(data1$ILD_subtype)),simulate.p.value = TRUE)$p.value
+        }
+        else{
+          p<- wilcox.test(data1[[name]] ~ data1$ILD_subtype_1)$p.value
+        }
+        s[2] <- sub("<", "&lt;", format.pval(p, digits=3,eps=0.001))
+        s
+    } else {
+        render.default(x=x, name=name, ...)
+    }
+}
+
+pvaluelabel <- function(label, n, ...) {
+    ifelse(n==0, label, render.strat.default(label, n, ...))
+}
+
+table1(~Gender+Age+Race+BMI+EverSmoker+PkYr+FEV1+FEV1PP+FVC+FVCPP+RatioPP+TLC+TLCPP+Emphysema+X6MWD|ILD_subtype,data=data1,droplevels = F,render=getPvalue,render.strat=pvaluelabel,overall=F)
+
+```
+
+##### Question 4 Does adjustment for relevant demographic, body size, or lung function variables change your protein signature profiles? 
+
+
+
+
+### I.RA_noILD vs RA_ILD young
+
+```{r}
+group_list <- factor(c(rep("RA_noILD",24),rep("RA_ILD",11)))
+ILD %>% filter(Group=='RA_noILD'|Group=='RA_ILD') -> data5
+data5 <- data5 %>% mutate(Group=recode(factor(Group),RA_noILD="RA_noILD",RA_ILD="RA_ILD"))
+data <- data5 %>% filter(age_stratify=="young") %>% select(20:1341) %>% log2(.) %>% t()
+design <- model.matrix(~0+group_list)
+colnames(design) <- levels(factor(group_list))
+rownames(design) <- colnames(data)
+contrast.matrix<-makeContrasts(RA_noILD-RA_ILD,levels = design)
+contrast.matrix                             
+fit <- lmFit(data,design)
+
+fit2 <- contrasts.fit(fit, contrast.matrix) 
+
+fit2 <- eBayes(fit2,trend=TRUE)
+
+result_limma5 <- topTable(fit2,coef=1,adjust.method='fdr',number=nrow(data))
+dif5 <- result_limma5%>%filter(adj.P.Val<0.01& abs(logFC)>0.5)
+dif5
+#The number of differentially expressed proteins
+sum(result_limma5$adj.P.Val < 0.01&abs(result_limma5$logFC)>=0.5)
+sum(result_limma5$adj.P.Val < 0.01&result_limma5$logFC<=-0.5)
+sum(result_limma5$adj.P.Val < 0.01&result_limma5$logFC>=0.5)
+```
+
+```{r}
+result_limma5$threshold <-
+  factor(ifelse(result_limma5$adj.P.Val < 0.01 & abs(result_limma5$logFC) >= 0.5,
+                ifelse(result_limma5$logFC>= 0.5,
+                       'Up','Down'),'NoSignifi'),levels=c('Up','Down','NoSignifi'))                         
+ggplot(result_limma5,aes(x=logFC,y=-log10(adj.P.Val),color=threshold))+
+  geom_point()+
+   scale_color_manual(values=c("#DC143C","#00008B","#808080"))+
+  theme_bw()+
+  theme(
+    legend.title = element_blank())+
+  ylab('-log10 (p-adj)')+
+  xlab('log2 (FoldChange)')+ggtitle("         The volcano plot of RA_noILD versus RA_ILD in young group")+
+  geom_vline(xintercept=c(-0.5,0.5),lty=3,col="black",lwd=0.5) +
+  geom_hline(yintercept = -log10(0.01),lty=3,col="black",lwd=0.5)
+```
+
+
+
+### RA_noILD vs RA_ILD old
+
+```{r}
+group_list <- factor(c(rep("RA_noILD",13),rep("RA_ILD",28)))
+ILD %>% filter(Group=='RA_noILD'|Group=='RA_ILD') -> data6
+data6 <- data6 %>% mutate(Group=recode(factor(Group),RA_noILD="RA_noILD",RA_ILD="RA_ILD"))
+data <- data6 %>% filter(age_stratify=="old") %>% select(20:1341) %>% log2(.) %>% t()
+design <- model.matrix(~0+group_list)
+colnames(design) <- levels(factor(group_list))
+rownames(design) <- colnames(data)
+contrast.matrix<-makeContrasts(RA_noILD-RA_ILD,levels = design)
+contrast.matrix
+fit <- lmFit(data,design)
+
+fit2 <- contrasts.fit(fit, contrast.matrix) 
+
+fit2 <- eBayes(fit2,trend=TRUE)
+
+result_limma6 <- topTable(fit2,coef=1,adjust.method='fdr',number=nrow(data))
+
+dif6 <- result_limma6%>%filter(adj.P.Val<0.01& abs(logFC)>0.5)
+dif6
+#The number of differentially expressed proteins
+sum(result_limma6$adj.P.Val < 0.01&abs(result_limma6$logFC)>=0.5)
+sum(result_limma6$adj.P.Val < 0.01&result_limma6$logFC<=-0.5)
+sum(result_limma6$adj.P.Val < 0.01&result_limma6$logFC>=0.5)
+```
+
+```{r}
+result_limma6$threshold <-
+  factor(ifelse(result_limma6$adj.P.Val < 0.01 & abs(result_limma6$logFC) >= 0.5,
+                ifelse(result_limma6$logFC>= 0.5,
+                       'Up','Down'),'NoSignifi'),levels=c('Up','Down','NoSignifi'))                         
+ggplot(result_limma6,aes(x=logFC,y=-log10(adj.P.Val),color=threshold))+
+  geom_point()+
+   scale_color_manual(values=c("#808080","#DC143C","#00008B"))+
+  theme_bw()+
+  theme(
+    legend.title = element_blank())+
+  ylab('-log10 (p-adj)')+
+  xlab('log2 (FoldChange)')+ggtitle("         The volcano plot of RA_noILD versus RA_ILD in old group")+
+  geom_vline(xintercept=c(-0.5,0.5),lty=3,col="black",lwd=0.5) +
+  geom_hline(yintercept = -log10(0.01),lty=3,col="black",lwd=0.5)
+```
+
+
+
+
+
+
+
